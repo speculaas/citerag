@@ -1,0 +1,92 @@
+{
+  "library": ["arxiv-2407.04180", "arxiv-2003.10580"],
+  "papers": {
+    "arxiv-2407.04180": {
+      "title": "Slice-100K: A Multimodal Dataset for Extrusion-based 3D Printing",
+      "authors": "Jignasu, Marshall, Mishra, Rillo, Ganapathysubramanian, Balu, Hegde, Krishnamurthy",
+      "year": 2024,
+      "venue": "NeurIPS 2024 (Datasets and Benchmarks Track)",
+      "url": "https://arxiv.org/abs/2407.04180",
+      "abstract": "TODO: paste abstract from https://arxiv.org/abs/2407.04180 here."
+    },
+    "arxiv-2003.10580": {
+      "title": "Meta Pseudo Labels",
+      "authors": "Pham, Dai, Xie, Luong, Le",
+      "year": 2021,
+      "venue": "CVPR 2021",
+      "url": "https://arxiv.org/abs/2003.10580",
+      "abstract": "TODO: paste abstract from https://arxiv.org/abs/2003.10580 here."
+    },
+
+    "zhou2016thingi10k": {
+      "title": "Thingi10k: A dataset of 10,000 3D-printing models",
+      "authors": "Zhou, Jacobson",
+      "year": 2016,
+      "venue": "arXiv:1605.04797",
+      "url": "https://arxiv.org/abs/1605.04797"
+    },
+    "koch2019abc": {
+      "title": "ABC: A big CAD model dataset for geometric deep learning",
+      "authors": "Koch, Matveev, Jiang, Williams, Artemov, Burnaev, Alexa, Zorin, Panozzo",
+      "year": 2019,
+      "venue": "CVPR 2019",
+      "url": ""
+    },
+    "clipvitl14": {
+      "title": "CLIP-ViT-L/14",
+      "authors": "OpenAI",
+      "year": 2024,
+      "venue": "Hugging Face model card",
+      "url": "https://huggingface.co/openai/clip-vit-large-patch14"
+    },
+
+    "meta_aux_learning": {
+      "title": "Self-Supervised Generalisation with Meta Auxiliary Learning",
+      "authors": "Liu, Davison, Johns",
+      "year": 2019,
+      "venue": "NeurIPS 2019",
+      "url": ""
+    },
+    "scudder1965probability": {
+      "title": "Probability of error of some adaptive pattern-recognition machines",
+      "authors": "Scudder",
+      "year": 1965,
+      "venue": "IEEE Transactions on Information Theory 11(3)",
+      "url": ""
+    },
+    "yarowsky1995unsupervised": {
+      "title": "Unsupervised word sense disambiguation rivaling supervised methods",
+      "authors": "Yarowsky",
+      "year": 1995,
+      "venue": "33rd Annual Meeting of the ACL",
+      "url": ""
+    }
+  },
+  "edges": [
+    {"from": "arxiv-2407.04180", "to": "zhou2016thingi10k",
+     "type": "reference",
+     "anchor": "Cited as a precedent 3D-printing model dataset.",
+     "added_at": "seed"},
+    {"from": "arxiv-2407.04180", "to": "koch2019abc",
+     "type": "reference",
+     "anchor": "Cited as a large-scale CAD dataset for geometric deep learning.",
+     "added_at": "seed"},
+    {"from": "arxiv-2407.04180", "to": "clipvitl14",
+     "type": "reference",
+     "anchor": "Used as the multimodal text/image encoder.",
+     "added_at": "seed"},
+
+    {"from": "arxiv-2003.10580", "to": "meta_aux_learning",
+     "type": "reference",
+     "anchor": "Cited in the discussion of meta-learning auxiliary objectives.",
+     "added_at": "seed"},
+    {"from": "arxiv-2003.10580", "to": "scudder1965probability",
+     "type": "reference",
+     "anchor": "Cited as an early reference for self-training / pseudo-labelling.",
+     "added_at": "seed"},
+    {"from": "arxiv-2003.10580", "to": "yarowsky1995unsupervised",
+     "type": "reference",
+     "anchor": "Cited as a classic self-training method.",
+     "added_at": "seed"}
+  ]
+}

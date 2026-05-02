@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>paper-navigator</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="header">
+    <h1>paper-navigator</h1>
+    <span class="subtitle">minimal — edges only, no RAG yet</span>
+  </div>
+  <div id="app">
+    <div id="library-strip" aria-label="Library"></div>
+    <div id="viewport">
+      <div id="paper-meta">
+        <p class="loading">Loading…</p>
+      </div>
+    </div>
+
+    <div id="feed-panel">
+      <div id="feed-panel-header">References &amp; cited-by</div>
+      <div id="feed" aria-live="polite"></div>
+
+      <div class="feed-form">
+        <h3>Add reference (this paper cites another)</h3>
+        <input class="ref-id"     placeholder="other paper id, e.g. arxiv-1706.03762">
+        <input class="ref-title"  placeholder="title (optional)">
+        <input class="ref-url"    placeholder="url (optional)">
+        <input class="ref-anchor" placeholder="anchor passage (optional)">
+        <button data-add="reference">Add reference</button>
+      </div>
+
+      <div class="feed-form">
+        <h3>Add cited-by (another paper cites this one)</h3>
+        <input class="cb-id"     placeholder="other paper id">
+        <input class="cb-title"  placeholder="title (optional)">
+        <input class="cb-url"    placeholder="url (optional)">
+        <input class="cb-anchor" placeholder="anchor passage (optional)">
+        <button data-add="cited_by">Add cited-by</button>
+      </div>
+    </div>
+  </div>
+  <script src="viewer.js"></script>
+</body>
+</html>
