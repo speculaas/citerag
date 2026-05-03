@@ -77,7 +77,30 @@ body {
 #feed-panel-header {
   padding: 10px 16px; border-bottom: 1px solid var(--border);
   font-weight: 600; font-size: 14px; color: var(--text-dim); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between;
 }
+
+.graph-toggle-btn {
+  font-size: 11px; font-weight: 600; color: var(--text-dim);
+  background: #e4e6eb; border: none; border-radius: 10px;
+  padding: 3px 10px; cursor: pointer; transition: background .15s, color .15s;
+}
+.graph-toggle-btn:hover  { background: var(--border); }
+.graph-toggle-btn.active { background: var(--accent-bg); color: var(--accent); }
+
+#graph-panel {
+  display: none; border-bottom: 1px solid var(--border);
+  background: #fafbfc; flex-shrink: 0; max-height: 320px; overflow-y: auto;
+}
+#graph-panel.open { display: block; }
+.graph-block { padding: 6px 0; border-bottom: 1px solid var(--border); }
+.graph-block:last-child { border-bottom: none; }
+.graph-block-label {
+  font-size: 11px; font-weight: 700; color: var(--text-dim);
+  text-transform: uppercase; letter-spacing: .04em;
+  padding: 4px 16px;
+}
+.graph-block canvas { display: block; cursor: pointer; }
 
 #feed { flex: 1; overflow-y: auto; padding: 8px 0; }
 #feed::-webkit-scrollbar { width: 6px; }

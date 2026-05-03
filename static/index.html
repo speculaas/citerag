@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>paper-navigator</title>
+  <title>citerag</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div id="header">
-    <h1>paper-navigator</h1>
-    <span class="subtitle">minimal — edges only, no RAG yet</span>
+    <h1>citerag</h1>
+    <span class="subtitle">graph-native citation reader</span>
   </div>
   <div id="app">
     <div id="library-strip" aria-label="Library"></div>
@@ -20,7 +20,20 @@
     </div>
 
     <div id="feed-panel">
-      <div id="feed-panel-header">References &amp; cited-by</div>
+      <div id="feed-panel-header">
+        References &amp; cited-by
+        <button id="graph-toggle" class="graph-toggle-btn" title="Toggle citation graph">Graph</button>
+      </div>
+      <div id="graph-panel" aria-label="Citation graph">
+        <div class="graph-block">
+          <div class="graph-block-label">References ↓ (focus cites these)</div>
+          <canvas id="graph-references"></canvas>
+        </div>
+        <div class="graph-block">
+          <div class="graph-block-label">Cited by ↑ (these cite focus)</div>
+          <canvas id="graph-cited-by"></canvas>
+        </div>
+      </div>
       <div id="feed" aria-live="polite"></div>
 
       <div class="feed-form">
@@ -42,6 +55,7 @@
       </div>
     </div>
   </div>
+  <script src="graph.js"></script>
   <script src="viewer.js"></script>
 </body>
 </html>

@@ -23,8 +23,34 @@ async function loadFocus(id) {
   ]);
   renderPaper(paper);
   renderFeed(edges);
+  renderGraphs(paper, edges);
   document.querySelectorAll("#library-strip .lib-item").forEach(el =>
     el.classList.toggle("active", el.dataset.paperId === id));
+}
+
+function paperLabel(p) {
+  const firstAuthor = (p.authors || "").split(",")[0].trim().split(" ").pop();
+  const year = p.year ? ` ${p.year}` : "";
+  return (firstAuthor || p.id) + year;
+}
+
+function renderGraphs(focus, edges) {
+  const focusNode = id => ({
+    id, parent_id: null, depth: 0,
+    label: paperLabel({ ...focus, id }),
+  });
+  const childNode = e => ({
+    id: e.other_id, parent_id: focusId, depth: 1,
+    label: e.other_title || e.other_id,
+    children: [],
+  });
+
+  const refTree = [{ ...focusNode(focusId), children: edges.references.map(childNode) }];
+  const cbTree  = [{ ...focusNode(focusId), children: edges.cited_by.map(childNode)  }];
+
+  const opts = { activeId: focusId, onNodeClick: id => loadFocus(id).catch(err => alert(err.message)) };
+  TreeGraph.render(refTree, $("graph-references"), opts);
+  TreeGraph.render(cbTree,  $("graph-cited-by"),   opts);
 }
 
 function renderLibrary(items) {
@@ -133,6 +159,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.querySelectorAll("button[data-add]").forEach(btn =>
     btn.addEventListener("click", () => submitEdge(btn.dataset.add))
   );
+
+  const graphToggle = $("graph-toggle");
+  const graphPanel  = $("graph-panel");
+  graphToggle.addEventListener("click", () => {
+    const open = graphPanel.classList.toggle("open");
+    graphToggle.classList.toggle("active", open);
+  });
   try {
     const lib = await api("/api/library");
     renderLibrary(lib);

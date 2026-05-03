@@ -1,38 +1,44 @@
 /**
- * graph.js — CommentGraph (Feature C)
+ * graph.js — TreeGraph
  *
  * Adapts the concepts from GitLab's network/graph.rb and network.js:
  *   time  → DFS traversal order, maps to y-axis (like commit timeline)
  *   space → horizontal lane derived from depth, maps to x-axis (like branch lanes)
  *
- * Renders the comment tree on a <canvas> with elbow connector lines, one
- * coloured lane per depth level. Click any node to navigate (Permalink).
+ * Renders a node tree on a <canvas> with elbow connector lines, one
+ * coloured lane per depth level. Caller supplies an onNodeClick callback.
+ *
+ * Input tree shape:
+ *   [{id, label, depth, parent_id, children: [...]}]
  */
-const CommentGraph = (() => {
-  const NODE_R   = 5;
-  const NODE_H   = 28;
-  const LANE_W   = 20;
-  const PAD_X    = 14;
-  const PAD_Y    = 16;
-  const MAX_LABEL = 11;
+const TreeGraph = (() => {
+  const NODE_R    = 5;
+  const NODE_H    = 28;
+  const LANE_W    = 24;
+  const PAD_X     = 14;
+  const PAD_Y     = 16;
+  const MAX_LABEL = 18;
   const LANE_COLORS = ["#1877f2", "#e3008c", "#13a852", "#f7941d", "#7b61ff"];
 
-  let _canvas, _ctx, _nodes, _photoId, _activeId;
+  let _canvas, _ctx, _nodes, _activeId, _onClick;
 
   // Flatten tree → ordered list with time (DFS index) and space (depth lane).
   // Mirrors graph.rb's index_commits: each node gets c.time = i, c.space = lane.
   function flatten(tree) {
     const nodes = [];
-    function dfs(comment) {
+    const seen  = new Set();
+    function dfs(node) {
+      if (seen.has(node.id)) return;  // cycle / DAG safety
+      seen.add(node.id);
       nodes.push({
-        id:       comment.id,
-        parentId: comment.parent_id || null,
-        depth:    comment.depth,
-        author:   comment.author,
+        id:       node.id,
+        parentId: node.parent_id || null,
+        depth:    node.depth,
+        label:    node.label || node.id,
         time:     nodes.length,   // graph.rb: c.time = i
-        space:    comment.depth,  // graph.rb: space = visual lane
+        space:    node.depth,     // graph.rb: space = visual lane
       });
-      (comment.children || []).forEach(dfs);
+      (node.children || []).forEach(dfs);
     }
     tree.forEach(dfs);
     return nodes;
@@ -106,8 +112,8 @@ const CommentGraph = (() => {
       _ctx.lineWidth   = isActive ? 2.5 : 1.5;
       _ctx.stroke();
 
-      // First-name label — truncated to MAX_LABEL chars
-      const label = node.author.split(" ")[0].slice(0, MAX_LABEL);
+      // Truncated label
+      const label = String(node.label || "").slice(0, MAX_LABEL);
       _ctx.fillStyle    = isActive ? color : "#65676b";
       _ctx.font         = `${isActive ? 600 : 400} 10px -apple-system, BlinkMacSystemFont, sans-serif`;
       _ctx.textBaseline = "middle";
@@ -115,16 +121,16 @@ const CommentGraph = (() => {
     });
   }
 
-  function render(tree, photoId, canvasEl) {
+  function render(tree, canvasEl, opts = {}) {
     _canvas   = canvasEl;
-    _photoId  = photoId;
-    _activeId = Permalink.currentCommentId();
+    _activeId = opts.activeId || null;
+    _onClick  = opts.onNodeClick || (() => {});
     _nodes    = (tree && tree.length > 0) ? flatten(tree) : [];
     draw();
 
     _canvas.onclick = e => {
       if (!_nodes || _nodes.length === 0) return;
-      const rect  = _canvas.getBoundingClientRect();
+      const rect   = _canvas.getBoundingClientRect();
       const scaleX = _canvas.width  / rect.width;
       const scaleY = _canvas.height / rect.height;
       const mx = (e.clientX - rect.left) * scaleX;
@@ -133,12 +139,12 @@ const CommentGraph = (() => {
         const { x, y } = xy(n);
         return Math.hypot(mx - x, my - y) <= NODE_R + 6;
       });
-      if (hit) Permalink.navigate(_photoId, hit.id);
+      if (hit) _onClick(hit.id);
     };
   }
 
-  function highlight(commentId) {
-    _activeId = commentId;
+  function highlight(id) {
+    _activeId = id;
     draw();
   }
 
