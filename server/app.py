@@ -144,6 +144,7 @@ def ask(paper_id):
     try:
         result = rag_module.ask(paper_id, question)
     except Exception as e:
+        import traceback; traceback.print_exc()
         abort(503, f"RAG call failed (is Ollama running?): {e}")
 
     now = datetime.now(timezone.utc)
