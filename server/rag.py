@@ -133,6 +133,11 @@ def ask(paper_id: str, question: str, prior_turns: list = None) -> dict:
     context = "\n\n".join(d.page_content for d in docs)
     history = _summarize_history(prior_turns or [])
 
+    rendered_prompt = prompt.format(context=context, question=question, history=history)
+    print("\n" + "=" * 60 + f"\nRENDERED PROMPT for {paper_id}\n" + "=" * 60)
+    print(rendered_prompt)
+    print("=" * 60 + "\n", flush=True)
+
     chain = prompt | _ollama() | StrOutputParser()
     answer = chain.invoke({"context": context, "question": question, "history": history})
 
@@ -141,4 +146,9 @@ def ask(paper_id: str, question: str, prior_turns: list = None) -> dict:
         page = d.metadata.get("page")
         src  = d.metadata.get("source", "")
         sources.append(f"{os.path.basename(src) if src else paper_id}#p{page}" if page is not None else (src or paper_id))
-    return {"answer": answer.strip(), "sources": sources, "history": history}
+    return {
+        "answer":          answer.strip(),
+        "sources":         sources,
+        "history":         history,
+        "rendered_prompt": rendered_prompt,
+    }

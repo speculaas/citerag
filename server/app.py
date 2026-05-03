@@ -159,6 +159,7 @@ def ask(paper_id):
         "answer":         result["answer"],
         "sources":        result["sources"],
         "history":        result.get("history", ""),
+        "rendered_prompt": result.get("rendered_prompt", ""),
         "added_at":       now.isoformat(timespec="seconds"),
     }
     turns_data["turns"].append(turn)
