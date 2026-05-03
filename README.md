@@ -1,50 +1,63 @@
 # citerag
 
-A graph-native reader for citation networks, with optional RAG over
-each paper. Each paper is a focus node with two outgoing edge types:
-**references** (papers it cites) and **cited-by** (papers that cite
-it). Click any edge card to switch focus; the right-column feed
-re-renders for the new paper.
+A graph-native reader for citation networks, with per-paper RAG. Each
+paper is a focus node with two outgoing edge types: **references**
+(papers it cites) and **cited-by** (papers that cite it). Click any
+edge card to switch focus; the feed re-renders for the new paper.
 
-Edges are listed as cards in the right column and visualised as a
-two-pane citation graph (toggled via the **Graph** button). RAG Q&A
-layers on top in a subsequent commit.
+The current slice ships:
+
+- a list-view feed of references + cited-by + Q&A turns,
+- a two-pane visual citation graph (toggled via the **Graph** button), and
+- per-paper RAG Q&A over Chroma-embedded PDF chunks
+  (`POST /api/papers/<id>/ask`).
 
 ## Run
 
 ```bash
-pip install flask flask-cors
-python server/app.py    # http://localhost:5000
+pip install -r requirements.txt
+ollama serve &                          # in another terminal; install once: ollama pull mistral
+python ingest.py arxiv-2407.04180 path/to/Slice-100K.pdf
+python server/app.py                    # http://localhost:5000
 ```
 
 The library is seeded with two arxiv papers; pick one in the left
-strip. Use the two forms at the bottom of the feed to add references
-or cited-by edges; they're persisted to `data/edges.json`
-(hand-editable).
+strip. Add references / cited-by edges via the two forms at the bottom
+of the feed (persisted to `data/edges.json`). Ask questions about the
+focused paper in the Q&A box at the top of the feed (persisted to
+`data/turns.json`).
+
+You only need to ingest a paper once. The `/ask` endpoint will refuse
+with a 409 if the focused paper has no chunks indexed yet — run
+`python ingest.py <paper_id> <pdf>` to fix.
 
 ## Files
 
 | File                    | Role                                                          |
 | ----------------------- | ------------------------------------------------------------- |
-| `data/edges.json`       | The whole data model — papers map + edges list                |
-| `server/app.py`         | Flask: `/api/library`, `/api/papers/<id>`, `/api/papers/<id>/edges`, `POST /api/edges` |
+| `data/edges.json`       | Papers map + typed edge list (hand-editable)                  |
+| `data/turns.json`       | Q&A turns, append-only                                        |
+| `data/chroma/`          | Chroma persistent vector store (created on first ingest)      |
+| `ingest.py`             | CLI: load a PDF into Chroma under a given `paper_id`          |
+| `server/app.py`         | Flask: edges, turns, library, and `POST .../ask` endpoints    |
+| `server/rag.py`         | RAG layer — Ollama mistral + HF all-mpnet-base-v2 + Chroma    |
 | `static/index.html`     | Three-column layout: library strip + viewport + feed panel    |
-| `static/viewer.js`      | Fetch focus paper + edges, render cards, submit forms         |
-| `static/style.css`      | Edge-card styling (`.edge-reference` / `.edge-cited_by`)      |
-| `static/graph.js`       | `TreeGraph` — DFS-time / depth-space layout, ported from a comment-graph for the citation graph |
-| `static/qa.js`          | **Unused in this minimal cut.** Reserved for Q&A turns in the feed. |
-| `static/permalink.js`   | **Unused in this minimal cut.** Reserved for URL-hash routing. |
+| `static/viewer.js`      | Fetches paper + edges + turns, renders the feed and graph    |
+| `static/style.css`      | Edge cards, Q&A bubbles, ask form, graph panel                |
+| `static/graph.js`       | `TreeGraph` — DFS-time / depth-space layout (citation graph)  |
+| `static/qa.js`          | **Unused.** Reserved for nested Q&A follow-ups.               |
+| `static/permalink.js`   | **Unused.** Reserved for URL-hash routing.                    |
 
 ## Roadmap
 
 1. ✅ **Edge feed.**
 2. ✅ **Citation graph** — focus + 1-hop neighbours, two stacked
    canvases (References ↓ and Cited by ↑), click any node to refocus.
-3. Wire RAG Q&A: `POST /api/papers/<id>/ask` over Chroma-embedded
-   chunks, render Q&A turns interleaved in the feed.
+3. ✅ **RAG Q&A** — per-paper retrieval over a Chroma store filtered
+   by `paper_id` metadata, rendered as Q&A turns in the feed.
 4. Replace title/abstract viewport with PDF.js.
-5. Optional: assisted edge-builder (Semantic Scholar candidates) and
-   `.tex` `\bibitem` bulk import.
+5. Optional: nested Q&A follow-ups; assisted edge-builder (Semantic
+   Scholar candidates); `.tex` `\bibitem` bulk import.
 
 ## Origin
 

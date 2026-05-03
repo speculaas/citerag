@@ -1,18 +1,22 @@
-"""Minimal Flask backend for paper-navigator.
+"""Flask backend for citerag.
 
-Persists papers + edges to data/edges.json. No RAG, no graph, no Q&A yet —
-that's deliberate. See ../../paper-navigator-plan.md for the layered plan.
+Persists papers + edges to data/edges.json and Q&A turns to data/turns.json.
+RAG (POST /api/papers/<id>/ask) is delegated to server/rag.py and runs
+against a Chroma store filtered by paper_id metadata.
 
-Run:  python server/app.py   (from the paper-navigator/ directory)
+Run:  python server/app.py     (Ollama must be running for /ask)
 """
 import json
 import os
+import sys
 from datetime import datetime, timezone
 from flask import Flask, jsonify, request, abort
 from flask_cors import CORS
 
-HERE      = os.path.dirname(os.path.abspath(__file__))
-DATA_PATH = os.path.join(HERE, "..", "data", "edges.json")
+HERE       = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)  # make `import rag` work from the /ask handler
+DATA_PATH  = os.path.join(HERE, "..", "data", "edges.json")
+TURNS_PATH = os.path.join(HERE, "..", "data", "turns.json")
 
 app = Flask(__name__, static_folder="../static", static_url_path="")
 CORS(app)
@@ -25,6 +29,18 @@ def load():
 
 def save(data):
     with open(DATA_PATH, "w") as f:
+        json.dump(data, f, indent=2)
+
+
+def load_turns():
+    if not os.path.exists(TURNS_PATH):
+        return {"turns": []}
+    with open(TURNS_PATH) as f:
+        return json.load(f)
+
+
+def save_turns(data):
+    with open(TURNS_PATH, "w") as f:
         json.dump(data, f, indent=2)
 
 
@@ -102,6 +118,48 @@ def add_edge():
     data["edges"].append(edge)
     save(data)
     return jsonify({"ok": True, "edge": edge})
+
+
+@app.route("/api/papers/<paper_id>/turns")
+def get_turns(paper_id):
+    turns = load_turns()["turns"]
+    return jsonify([t for t in turns if t["paper_id"] == paper_id])
+
+
+@app.route("/api/papers/<paper_id>/ask", methods=["POST"])
+def ask(paper_id):
+    body = request.get_json(force=True)
+    question = (body.get("question") or "").strip()
+    if not question:
+        abort(400, "question is required")
+
+    data = load()
+    if paper_id not in data["papers"]:
+        abort(404, f"unknown paper: {paper_id}")
+
+    import rag as rag_module
+    if rag_module.chunk_count(paper_id) == 0:
+        abort(409, f"no chunks indexed for {paper_id}; run `python ingest.py {paper_id} <pdf>` first")
+
+    try:
+        result = rag_module.ask(paper_id, question)
+    except Exception as e:
+        abort(503, f"RAG call failed (is Ollama running?): {e}")
+
+    now = datetime.now(timezone.utc)
+    turn = {
+        "id":             f"t-{int(now.timestamp() * 1000)}",
+        "paper_id":       paper_id,
+        "parent_turn_id": body.get("parent_turn_id"),
+        "question":       question,
+        "answer":         result["answer"],
+        "sources":        result["sources"],
+        "added_at":       now.isoformat(timespec="seconds"),
+    }
+    turns_data = load_turns()
+    turns_data["turns"].append(turn)
+    save_turns(turns_data)
+    return jsonify(turn)
 
 
 if __name__ == "__main__":

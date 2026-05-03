@@ -17,12 +17,13 @@ async function api(path, opts) {
 
 async function loadFocus(id) {
   focusId = id;
-  const [paper, edges] = await Promise.all([
+  const [paper, edges, turns] = await Promise.all([
     api(`/api/papers/${id}`),
     api(`/api/papers/${id}/edges`),
+    api(`/api/papers/${id}/turns`),
   ]);
   renderPaper(paper);
-  renderFeed(edges);
+  renderFeed(edges, turns);
   renderGraphs(paper, edges);
   document.querySelectorAll("#library-strip .lib-item").forEach(el =>
     el.classList.toggle("active", el.dataset.paperId === id));
@@ -82,20 +83,78 @@ function renderPaper(p) {
   `;
 }
 
-function renderFeed({ references, cited_by }) {
+function renderFeed({ references, cited_by }, turns) {
   const feed = $("feed");
   feed.innerHTML = "";
 
-  if (references.length === 0 && cited_by.length === 0) {
-    feed.innerHTML = '<p class="empty">No edges yet. Add a reference or cited-by below.</p>';
-    return;
-  }
+  feed.appendChild(qaSection(turns));
 
   if (references.length) {
     feed.appendChild(section("References ↓", references, "reference"));
   }
   if (cited_by.length) {
     feed.appendChild(section("Cited by ↑", cited_by, "cited_by"));
+  }
+}
+
+function qaSection(turns) {
+  const wrap = document.createElement("div");
+  wrap.className = "feed-section qa-section";
+  wrap.innerHTML = `<h3>Q&amp;A</h3>`;
+
+  if (turns.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "empty-q";
+    empty.textContent = "No questions asked yet.";
+    wrap.appendChild(empty);
+  } else {
+    turns.forEach(t => wrap.appendChild(turnNode(t)));
+  }
+
+  const form = document.createElement("div");
+  form.className = "ask-form";
+  form.innerHTML = `
+    <textarea class="ask-q" placeholder="Ask a question about this paper…"></textarea>
+    <button class="ask-btn">Ask</button>
+  `;
+  form.querySelector(".ask-btn").addEventListener("click", askQuestion);
+  form.querySelector(".ask-q").addEventListener("keydown", e => {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) askQuestion();
+  });
+  wrap.appendChild(form);
+  return wrap;
+}
+
+function turnNode(t) {
+  const el = document.createElement("div");
+  el.className = "qa-turn";
+  el.dataset.turnId = t.id;
+  el.innerHTML = `
+    <div class="qa-q"><span class="qa-label">Q</span> ${escape(t.question)}</div>
+    <div class="qa-a"><span class="qa-label">A</span> ${escape(t.answer)}</div>
+    ${t.sources && t.sources.length ? `<div class="qa-sources">${t.sources.map(escape).join(" · ")}</div>` : ""}
+  `;
+  return el;
+}
+
+async function askQuestion() {
+  const ta  = document.querySelector(".ask-q");
+  const btn = document.querySelector(".ask-btn");
+  const q   = ta.value.trim();
+  if (!q) return;
+  btn.disabled = true; btn.textContent = "Thinking…";
+  try {
+    await api(`/api/papers/${focusId}/ask`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ question: q }),
+    });
+    ta.value = "";
+    await loadFocus(focusId);
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = "Ask";
   }
 }
 
