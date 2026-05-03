@@ -31,7 +31,11 @@ _chain   = None  # cached per-paper-id
 
 PROMPT_TEMPLATE = """
 <s>[INST]
-Given the context below, answer the question.
+Given the prior conversation summary and the retrieved context below, answer the question.
+If the prior conversation is empty, treat this as a fresh question.
+
+Prior conversation:
+{history}
 
 Context:
 {context}
@@ -94,26 +98,47 @@ def chunk_count(paper_id: str) -> int:
         return 0
 
 
-def ask(paper_id: str, question: str) -> dict:
-    """Run the RAG chain scoped to one paper. Returns {answer, sources}."""
+def _summarize_history(prior_turns: list) -> str:
+    """Replay prior Q/A turns into a ConversationSummaryMemory and return its summary.
+    Empty list → empty string (the prompt template handles the empty case)."""
+    if not prior_turns:
+        return ""
+    try:
+        from langchain.memory import ConversationSummaryMemory
+    except ImportError:
+        # Memory module not present; fall back to a literal Q/A transcript.
+        return "\n".join(f"Q: {t['question']}\nA: {t['answer']}" for t in prior_turns)
+
+    memory = ConversationSummaryMemory(llm=_ollama())
+    for t in prior_turns:
+        memory.save_context({"input": t["question"]}, {"output": t["answer"]})
+    return memory.load_memory_variables({}).get("history", "")
+
+
+def ask(paper_id: str, question: str, prior_turns: list = None) -> dict:
+    """Run the RAG chain scoped to one paper. Returns {answer, sources}.
+    prior_turns: list of earlier {question, answer} dicts for this paper —
+    summarised via ConversationSummaryMemory and injected as {history}."""
     from langchain_core.prompts import PromptTemplate
     from langchain_core.output_parsers import StrOutputParser
 
     prompt = PromptTemplate(
-        template=PROMPT_TEMPLATE, input_variables=["context", "question"],
+        template=PROMPT_TEMPLATE,
+        input_variables=["context", "question", "history"],
     )
     retriever = _vectordb().as_retriever(
         search_kwargs={"k": TOP_K, "filter": {"paper_id": paper_id}},
     )
     docs = retriever.invoke(question)
     context = "\n\n".join(d.page_content for d in docs)
+    history = _summarize_history(prior_turns or [])
 
     chain = prompt | _ollama() | StrOutputParser()
-    answer = chain.invoke({"context": context, "question": question})
+    answer = chain.invoke({"context": context, "question": question, "history": history})
 
     sources = []
     for d in docs:
         page = d.metadata.get("page")
         src  = d.metadata.get("source", "")
         sources.append(f"{os.path.basename(src) if src else paper_id}#p{page}" if page is not None else (src or paper_id))
-    return {"answer": answer.strip(), "sources": sources}
+    return {"answer": answer.strip(), "sources": sources, "history": history}

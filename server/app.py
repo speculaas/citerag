@@ -141,8 +141,11 @@ def ask(paper_id):
     if rag_module.chunk_count(paper_id) == 0:
         abort(409, f"no chunks indexed for {paper_id}; run `python ingest.py {paper_id} <pdf>` first")
 
+    turns_data = load_turns()
+    prior_turns = [t for t in turns_data["turns"] if t["paper_id"] == paper_id]
+
     try:
-        result = rag_module.ask(paper_id, question)
+        result = rag_module.ask(paper_id, question, prior_turns=prior_turns)
     except Exception as e:
         import traceback; traceback.print_exc()
         abort(503, f"RAG call failed (is Ollama running?): {e}")
@@ -155,9 +158,9 @@ def ask(paper_id):
         "question":       question,
         "answer":         result["answer"],
         "sources":        result["sources"],
+        "history":        result.get("history", ""),
         "added_at":       now.isoformat(timespec="seconds"),
     }
-    turns_data = load_turns()
     turns_data["turns"].append(turn)
     save_turns(turns_data)
     return jsonify(turn)
