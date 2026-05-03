@@ -134,12 +134,24 @@ body {
 
 .feed-form {
   border-top: 1px solid var(--border);
-  padding: 12px 16px; background: #fafbfc; flex-shrink: 0;
+  padding: 0; background: #fafbfc; flex-shrink: 0;
 }
-.feed-form h3 {
+.feed-form summary {
   font-size: 12px; font-weight: 700; color: var(--text-dim);
-  text-transform: uppercase; margin-bottom: 8px;
+  text-transform: uppercase; letter-spacing: .04em;
+  padding: 10px 16px; cursor: pointer; list-style: none;
+  display: flex; align-items: center; gap: 6px;
+  user-select: none;
 }
+.feed-form summary::-webkit-details-marker { display: none; }
+.feed-form summary::before {
+  content: "▶"; font-size: 9px; color: var(--text-dim);
+  transition: transform .15s; display: inline-block;
+}
+.feed-form[open] summary::before { transform: rotate(90deg); }
+.feed-form summary:hover { background: var(--accent-bg); }
+.feed-form .form-hint { font-weight: 400; text-transform: none; letter-spacing: 0; }
+.feed-form-body { padding: 4px 16px 12px; }
 .feed-form input {
   display: block; width: 100%; padding: 6px 10px; margin-bottom: 6px;
   font-size: 13px; font-family: inherit;

@@ -36,23 +36,27 @@
       </div>
       <div id="feed" aria-live="polite"></div>
 
-      <div class="feed-form">
-        <h3>Add reference (this paper cites another)</h3>
-        <input class="ref-id"     placeholder="other paper id, e.g. arxiv-1706.03762">
-        <input class="ref-title"  placeholder="title (optional)">
-        <input class="ref-url"    placeholder="url (optional)">
-        <input class="ref-anchor" placeholder="anchor passage (optional)">
-        <button data-add="reference">Add reference</button>
-      </div>
+      <details class="feed-form">
+        <summary>Add reference <span class="form-hint">(this paper cites another)</span></summary>
+        <div class="feed-form-body">
+          <input class="ref-id"     placeholder="other paper id, e.g. arxiv-1706.03762">
+          <input class="ref-title"  placeholder="title (optional)">
+          <input class="ref-url"    placeholder="url (optional)">
+          <input class="ref-anchor" placeholder="anchor passage (optional)">
+          <button data-add="reference">Add reference</button>
+        </div>
+      </details>
 
-      <div class="feed-form">
-        <h3>Add cited-by (another paper cites this one)</h3>
-        <input class="cb-id"     placeholder="other paper id">
-        <input class="cb-title"  placeholder="title (optional)">
-        <input class="cb-url"    placeholder="url (optional)">
-        <input class="cb-anchor" placeholder="anchor passage (optional)">
-        <button data-add="cited_by">Add cited-by</button>
-      </div>
+      <details class="feed-form">
+        <summary>Add cited-by <span class="form-hint">(another paper cites this one)</span></summary>
+        <div class="feed-form-body">
+          <input class="cb-id"     placeholder="other paper id">
+          <input class="cb-title"  placeholder="title (optional)">
+          <input class="cb-url"    placeholder="url (optional)">
+          <input class="cb-anchor" placeholder="anchor passage (optional)">
+          <button data-add="cited_by">Add cited-by</button>
+        </div>
+      </details>
     </div>
   </div>
   <script src="graph.js"></script>
