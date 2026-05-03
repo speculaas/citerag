@@ -15,7 +15,7 @@ require Ollama to be running.
 import os
 
 EMBED_MODEL = "all-mpnet-base-v2"
-LLM_MODEL   = "mistral"
+LLM_MODEL   = "gpt-oss:20b"
 CHUNK_SIZE  = 2000
 CHUNK_OVER  = 30
 TOP_K       = 4
