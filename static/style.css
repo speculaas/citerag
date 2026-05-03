@@ -181,7 +181,13 @@ body {
 }
 .qa-a .qa-label { background: #13a852; }
 .qa-q { color: var(--text); margin-bottom: 6px; }
-.qa-a { color: var(--text); }
+.qa-a {
+  color: var(--text);
+  max-height: 220px; overflow-y: auto;
+  padding-right: 4px;
+}
+.qa-a::-webkit-scrollbar { width: 5px; }
+.qa-a::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 .qa-sources {
   font-size: 11px; color: var(--text-dim); margin-top: 6px;
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
