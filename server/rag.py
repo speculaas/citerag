@@ -72,9 +72,17 @@ def _ollama():
 
 
 def ingest_pdf(paper_id: str, pdf_path: str) -> int:
-    """Load a PDF, split into chunks, tag with paper_id, persist to Chroma."""
+    """Load a PDF, split into chunks, tag with paper_id, persist to Chroma.
+    Idempotent: any chunks previously stored under the same paper_id are
+    deleted first, so re-ingesting after a wrong-PDF mistake just works."""
     from langchain_text_splitters import RecursiveCharacterTextSplitter
     from langchain_community.document_loaders import PyPDFLoader
+
+    db = _vectordb()
+    existing = db.get(where={"paper_id": paper_id}, include=[])
+    if existing.get("ids"):
+        db.delete(ids=existing["ids"])
+        print(f"deleted {len(existing['ids'])} prior chunks for {paper_id}")
 
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVER, length_function=len,
@@ -83,7 +91,6 @@ def ingest_pdf(paper_id: str, pdf_path: str) -> int:
     for d in docs:
         d.metadata["paper_id"] = paper_id
 
-    db = _vectordb()
     db.add_documents(docs)
     return len(docs)
 
@@ -134,8 +141,15 @@ def ask(paper_id: str, question: str, prior_turns: list = None) -> dict:
     history = _summarize_history(prior_turns or [])
 
     rendered_prompt = prompt.format(context=context, question=question, history=history)
-    print("\n" + "=" * 60 + f"\nRENDERED PROMPT for {paper_id}\n" + "=" * 60)
-    print(rendered_prompt)
+
+    def _shorten(s, n=240):
+        s = (s or "").strip()
+        return s if len(s) <= n else s[:n].rstrip() + f"…[+{len(s) - n} chars]"
+
+    print("\n" + "=" * 60 + f"\nRENDERED PROMPT for {paper_id} (truncated; full text in turns.json)\n" + "=" * 60)
+    print(f"history:  {_shorten(history)}")
+    print(f"context:  {_shorten(context)}")
+    print(f"question: {question}")
     print("=" * 60 + "\n", flush=True)
 
     chain = prompt | _ollama() | StrOutputParser()
