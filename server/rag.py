@@ -96,8 +96,8 @@ def chunk_count(paper_id: str) -> int:
 
 def ask(paper_id: str, question: str) -> dict:
     """Run the RAG chain scoped to one paper. Returns {answer, sources}."""
-    from langchain.chains import RetrievalQA
-    from langchain.prompts import PromptTemplate
+    from langchain_core.prompts import PromptTemplate
+    from langchain_core.output_parsers import StrOutputParser
 
     prompt = PromptTemplate(
         template=PROMPT_TEMPLATE, input_variables=["context", "question"],
@@ -105,16 +105,15 @@ def ask(paper_id: str, question: str) -> dict:
     retriever = _vectordb().as_retriever(
         search_kwargs={"k": TOP_K, "filter": {"paper_id": paper_id}},
     )
-    chain = RetrievalQA.from_chain_type(
-        llm=_ollama(),
-        retriever=retriever,
-        chain_type_kwargs={"prompt": prompt},
-        return_source_documents=True,
-    )
-    result = chain.invoke({"query": question})
+    docs = retriever.invoke(question)
+    context = "\n\n".join(d.page_content for d in docs)
+
+    chain = prompt | _ollama() | StrOutputParser()
+    answer = chain.invoke({"context": context, "question": question})
+
     sources = []
-    for d in result.get("source_documents", []) or []:
+    for d in docs:
         page = d.metadata.get("page")
         src  = d.metadata.get("source", "")
         sources.append(f"{os.path.basename(src) if src else paper_id}#p{page}" if page is not None else (src or paper_id))
-    return {"answer": result["result"].strip(), "sources": sources}
+    return {"answer": answer.strip(), "sources": sources}
