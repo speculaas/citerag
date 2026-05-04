@@ -7,7 +7,11 @@
  */
 const $ = id => document.getElementById(id);
 
-let focusId = null;
+let focusId            = null;
+let activeBranchTipId  = null;   // null = linear chat (full paper history)
+let availableModels    = [];     // names from GET /api/models
+let defaultModel       = null;   // backend's LLM_MODEL
+let selectedModel      = null;   // null = use backend default
 
 async function api(path, opts) {
   const res = await fetch(path, opts);
@@ -16,6 +20,7 @@ async function api(path, opts) {
 }
 
 async function loadFocus(id) {
+  if (focusId !== id) activeBranchTipId = null;  // tip belongs to a paper
   focusId = id;
   const [paper, edges, turns] = await Promise.all([
     api(`/api/papers/${id}`),
@@ -113,7 +118,22 @@ function qaSection(turns) {
 
   const form = document.createElement("div");
   form.className = "ask-form";
+
+  const modelOptions = availableModels.length
+    ? availableModels.map(m =>
+        `<option value="${escape(m)}"${m === (selectedModel || defaultModel) ? " selected" : ""}>${escape(m)}</option>`
+      ).join("")
+    : `<option value="">(no models — is ollama running?)</option>`;
+
+  const tipLabel = activeBranchTipId
+    ? `branching from ${escape(activeBranchTipId.slice(0, 12))}…`
+    : `linear (full paper history)`;
+
   form.innerHTML = `
+    <div class="ask-controls">
+      <label>Model: <select class="model-select">${modelOptions}</select></label>
+      <span class="branch-tip">↳ ${tipLabel}${activeBranchTipId ? ` <button class="reset-tip" title="Reset to linear">×</button>` : ""}</span>
+    </div>
     <textarea class="ask-q" placeholder="Ask a question about this paper…"></textarea>
     <button class="ask-btn">Ask</button>
   `;
@@ -121,6 +141,16 @@ function qaSection(turns) {
   form.querySelector(".ask-q").addEventListener("keydown", e => {
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) askQuestion();
   });
+  form.querySelector(".model-select").addEventListener("change", e => {
+    selectedModel = e.target.value || null;
+  });
+  const resetBtn = form.querySelector(".reset-tip");
+  if (resetBtn) {
+    resetBtn.addEventListener("click", () => {
+      activeBranchTipId = null;
+      loadFocus(focusId);
+    });
+  }
   wrap.appendChild(form);
   return wrap;
 }
@@ -128,28 +158,50 @@ function qaSection(turns) {
 function turnNode(t) {
   const el = document.createElement("div");
   el.className = "qa-turn";
+  if (t.id === activeBranchTipId) el.classList.add("active-tip");
   el.dataset.turnId = t.id;
+  const meta = [
+    t.model          ? `model=${escape(t.model)}`           : null,
+    t.top_k          ? `k=${t.top_k}`                       : null,
+    t.prompt_variant ? `prompt=${escape(t.prompt_variant)}` : null,
+  ].filter(Boolean).join(" · ");
   el.innerHTML = `
     <div class="qa-q"><span class="qa-label">Q</span> ${escape(t.question)}</div>
     <div class="qa-a"><span class="qa-label">A</span> ${escape(t.answer)}</div>
     ${t.sources && t.sources.length ? `<div class="qa-sources">${t.sources.map(escape).join(" · ")}</div>` : ""}
+    <div class="qa-actions">
+      <button class="branch-btn" title="Make this turn the parent of the next question">↳ Branch from here</button>
+      ${meta ? `<span class="qa-meta">${meta}</span>` : ""}
+    </div>
   `;
+  el.querySelector(".branch-btn").addEventListener("click", () => {
+    activeBranchTipId = t.id;
+    loadFocus(focusId);  // re-render so the active tip is visually marked
+  });
   return el;
 }
 
 async function askQuestion() {
-  const ta  = document.querySelector(".ask-q");
-  const btn = document.querySelector(".ask-btn");
-  const q   = ta.value.trim();
+  const ta     = document.querySelector(".ask-q");
+  const btn    = document.querySelector(".ask-btn");
+  const q      = ta.value.trim();
   if (!q) return;
+  const model  = document.querySelector(".model-select")?.value || null;
   btn.disabled = true; btn.textContent = "Thinking…";
   try {
-    await api(`/api/papers/${focusId}/ask`, {
+    const turn = await api(`/api/papers/${focusId}/ask`, {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ question: q }),
+      body:    JSON.stringify({
+        question:       q,
+        model:          model || undefined,
+        parent_turn_id: activeBranchTipId || undefined,
+      }),
     });
     ta.value = "";
+    // After a turn completes, advance the branch tip so subsequent
+    // questions extend the same branch by default.
+    activeBranchTipId = turn.id;
     await loadFocus(focusId);
   } catch (err) {
     alert(err.message);
@@ -226,7 +278,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     graphToggle.classList.toggle("active", open);
   });
   try {
-    const lib = await api("/api/library");
+    const [lib, modelInfo] = await Promise.all([
+      api("/api/library"),
+      api("/api/models").catch(() => ({ models: [], default: null })),
+    ]);
+    availableModels = modelInfo.models || [];
+    defaultModel    = modelInfo.default || null;
     renderLibrary(lib);
     if (lib.length === 0) throw new Error("Library is empty.");
     await loadFocus(lib[0].id);

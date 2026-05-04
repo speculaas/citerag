@@ -26,7 +26,7 @@ CHROMA_DIR = os.path.abspath(
 
 _embed   = None
 _db      = None
-_llm     = None
+_llms    = {}    # cached Ollama instances by model name
 _chain   = None  # cached per-paper-id
 
 PROMPT_BASE = """
@@ -83,12 +83,15 @@ def _vectordb():
     return _db
 
 
-def _ollama():
-    global _llm
-    if _llm is None:
+def _ollama(model: str = None):
+    """Return a cached Ollama LLM for `model` (defaults to LLM_MODEL).
+    One instance per model name; ConversationSummaryMemory and the LCEL
+    chain share the same instance to avoid re-creating per call."""
+    name = model or LLM_MODEL
+    if name not in _llms:
         from langchain_community.llms import Ollama
-        _llm = Ollama(model=LLM_MODEL)
-    return _llm
+        _llms[name] = Ollama(model=name)
+    return _llms[name]
 
 
 def ingest_pdf(paper_id: str, pdf_path: str) -> int:
@@ -125,7 +128,7 @@ def chunk_count(paper_id: str) -> int:
         return 0
 
 
-def _summarize_history(prior_turns: list) -> str:
+def _summarize_history(prior_turns: list, model: str = None) -> str:
     """Replay prior Q/A turns into a ConversationSummaryMemory and return its summary.
     Empty list → empty string (the prompt template handles the empty case)."""
     if not prior_turns:
@@ -136,23 +139,27 @@ def _summarize_history(prior_turns: list) -> str:
         # Memory module not present; fall back to a literal Q/A transcript.
         return "\n".join(f"Q: {t['question']}\nA: {t['answer']}" for t in prior_turns)
 
-    memory = ConversationSummaryMemory(llm=_ollama())
+    memory = ConversationSummaryMemory(llm=_ollama(model))
     for t in prior_turns:
         memory.save_context({"input": t["question"]}, {"output": t["answer"]})
     return memory.load_memory_variables({}).get("history", "")
 
 
 def ask(paper_id: str, question: str, prior_turns: list = None,
-        top_k: int = TOP_K, prompt_variant: str = "base") -> dict:
+        top_k: int = TOP_K, prompt_variant: str = "base",
+        model: str = None) -> dict:
     """Run the RAG chain scoped to one paper. Returns {answer, sources, ...}.
-    prior_turns: earlier {question, answer} dicts for this paper, summarised
-        via ConversationSummaryMemory and injected as {history}.
+    prior_turns: earlier {question, answer} dicts walked along the active
+        branch, summarised via ConversationSummaryMemory and injected as {history}.
     top_k: retriever k. Tuneable per request for ablation studies.
     prompt_variant: 'base' or 'refusal'. The latter instructs the model to
-        say "Not in this paper." instead of guessing when context is thin."""
+        say "Not in this paper." instead of guessing when context is thin.
+    model: Ollama model name (e.g. "gpt-oss:20b", "mistral", "gemma3").
+        Defaults to LLM_MODEL when None."""
     from langchain_core.prompts import PromptTemplate
     from langchain_core.output_parsers import StrOutputParser
 
+    model_name = model or LLM_MODEL
     template_str = PROMPT_VARIANTS.get(prompt_variant, PROMPT_BASE)
     prompt = PromptTemplate(
         template=template_str,
@@ -163,7 +170,7 @@ def ask(paper_id: str, question: str, prior_turns: list = None,
     )
     docs = retriever.invoke(question)
     context = "\n\n".join(d.page_content for d in docs)
-    history = _summarize_history(prior_turns or [])
+    history = _summarize_history(prior_turns or [], model=model_name)
 
     rendered_prompt = prompt.format(context=context, question=question, history=history)
 
@@ -171,13 +178,13 @@ def ask(paper_id: str, question: str, prior_turns: list = None,
         s = (s or "").strip()
         return s if len(s) <= n else s[:n].rstrip() + f"…[+{len(s) - n} chars]"
 
-    print("\n" + "=" * 60 + f"\nRENDERED PROMPT for {paper_id} (truncated; full text in turns.json)\n" + "=" * 60)
+    print("\n" + "=" * 60 + f"\nRENDERED PROMPT for {paper_id} | model={model_name} (truncated; full text in turns.json)\n" + "=" * 60)
     print(f"history:  {_shorten(history)}")
     print(f"context:  {_shorten(context)}")
     print(f"question: {question}")
     print("=" * 60 + "\n", flush=True)
 
-    chain = prompt | _ollama() | StrOutputParser()
+    chain = prompt | _ollama(model_name) | StrOutputParser()
     answer = chain.invoke({"context": context, "question": question, "history": history})
 
     sources = []
@@ -192,4 +199,28 @@ def ask(paper_id: str, question: str, prior_turns: list = None,
         "rendered_prompt": rendered_prompt,
         "top_k":           top_k,
         "prompt_variant":  prompt_variant,
+        "model":           model_name,
     }
+
+
+def list_models() -> list:
+    """Return the names of locally-installed Ollama models, e.g.
+    ['gpt-oss:20b', 'mistral:latest']. Used by the model-switcher dropdown.
+    Returns an empty list if the `ollama` CLI is unavailable."""
+    import subprocess
+    try:
+        out = subprocess.run(
+            ["ollama", "list"],
+            capture_output=True, text=True, timeout=5,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return []
+    if out.returncode != 0:
+        return []
+    # Skip the header row; first whitespace-separated column is the name.
+    names = []
+    for line in out.stdout.splitlines()[1:]:
+        parts = line.split()
+        if parts:
+            names.append(parts[0])
+    return names

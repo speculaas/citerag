@@ -141,20 +141,33 @@ def ask(paper_id):
     if rag_module.chunk_count(paper_id) == 0:
         abort(409, f"no chunks indexed for {paper_id}; run `python ingest.py {paper_id} <pdf>` first")
 
-    top_k          = int(body.get("top_k") or 4)
-    prompt_variant = body.get("prompt_variant") or "base"
-    stateless      = bool(body.get("stateless"))
+    top_k           = int(body.get("top_k") or 4)
+    prompt_variant  = body.get("prompt_variant") or "base"
+    stateless       = bool(body.get("stateless"))
+    model           = body.get("model") or None
+    parent_turn_id  = body.get("parent_turn_id") or None
 
     if stateless:
         turns_data, prior_turns = None, []
     else:
         turns_data  = load_turns()
-        prior_turns = [t for t in turns_data["turns"] if t["paper_id"] == paper_id]
+        if parent_turn_id:
+            # Branch-aware history: walk parent links from the active branch
+            # tip back to the root, in chronological (root → leaf) order.
+            by_id = {t["id"]: t for t in turns_data["turns"]}
+            chain = []
+            curr  = parent_turn_id
+            while curr and curr in by_id:
+                chain.append(by_id[curr])
+                curr = by_id[curr].get("parent_turn_id")
+            prior_turns = list(reversed(chain))
+        else:
+            prior_turns = [t for t in turns_data["turns"] if t["paper_id"] == paper_id]
 
     try:
         result = rag_module.ask(
             paper_id, question, prior_turns=prior_turns,
-            top_k=top_k, prompt_variant=prompt_variant,
+            top_k=top_k, prompt_variant=prompt_variant, model=model,
         )
     except Exception as e:
         import traceback; traceback.print_exc()
@@ -164,7 +177,7 @@ def ask(paper_id):
     turn = {
         "id":             f"t-{int(now.timestamp() * 1000)}",
         "paper_id":       paper_id,
-        "parent_turn_id": body.get("parent_turn_id"),
+        "parent_turn_id": parent_turn_id,
         "question":       question,
         "answer":         result["answer"],
         "sources":        result["sources"],
@@ -172,12 +185,20 @@ def ask(paper_id):
         "rendered_prompt": result.get("rendered_prompt", ""),
         "top_k":          result.get("top_k"),
         "prompt_variant": result.get("prompt_variant"),
+        "model":          result.get("model"),
         "added_at":       now.isoformat(timespec="seconds"),
     }
     if not stateless:
         turns_data["turns"].append(turn)
         save_turns(turns_data)
     return jsonify(turn)
+
+
+@app.route("/api/models")
+def models():
+    """List locally-installed Ollama models for the frontend dropdown."""
+    import rag as rag_module
+    return jsonify({"models": rag_module.list_models(), "default": rag_module.LLM_MODEL})
 
 
 if __name__ == "__main__":
