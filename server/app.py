@@ -144,8 +144,14 @@ def ask(paper_id):
     turns_data = load_turns()
     prior_turns = [t for t in turns_data["turns"] if t["paper_id"] == paper_id]
 
+    top_k = int(body.get("top_k") or 4)
+    prompt_variant = body.get("prompt_variant") or "base"
+
     try:
-        result = rag_module.ask(paper_id, question, prior_turns=prior_turns)
+        result = rag_module.ask(
+            paper_id, question, prior_turns=prior_turns,
+            top_k=top_k, prompt_variant=prompt_variant,
+        )
     except Exception as e:
         import traceback; traceback.print_exc()
         abort(503, f"RAG call failed (is Ollama running?): {e}")
@@ -160,6 +166,8 @@ def ask(paper_id):
         "sources":        result["sources"],
         "history":        result.get("history", ""),
         "rendered_prompt": result.get("rendered_prompt", ""),
+        "top_k":          result.get("top_k"),
+        "prompt_variant": result.get("prompt_variant"),
         "added_at":       now.isoformat(timespec="seconds"),
     }
     turns_data["turns"].append(turn)

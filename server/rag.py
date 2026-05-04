@@ -29,7 +29,7 @@ _db      = None
 _llm     = None
 _chain   = None  # cached per-paper-id
 
-PROMPT_TEMPLATE = """
+PROMPT_BASE = """
 <s>[INST]
 Given the prior conversation summary and the retrieved context below, answer the question.
 If the prior conversation is empty, treat this as a fresh question.
@@ -45,6 +45,26 @@ Question:
 
 [/INST]
 """
+
+PROMPT_REFUSAL = """
+<s>[INST]
+Given the prior conversation summary and the retrieved context below, answer the question.
+If the prior conversation is empty, treat this as a fresh question.
+If the retrieved context does not contain enough information to answer the question, reply exactly with "Not in this paper." and stop --- do not guess or draw from outside knowledge.
+
+Prior conversation:
+{history}
+
+Context:
+{context}
+
+Question:
+{question}
+
+[/INST]
+"""
+
+PROMPT_VARIANTS = {"base": PROMPT_BASE, "refusal": PROMPT_REFUSAL}
 
 
 def _embedding():
@@ -122,19 +142,24 @@ def _summarize_history(prior_turns: list) -> str:
     return memory.load_memory_variables({}).get("history", "")
 
 
-def ask(paper_id: str, question: str, prior_turns: list = None) -> dict:
-    """Run the RAG chain scoped to one paper. Returns {answer, sources}.
-    prior_turns: list of earlier {question, answer} dicts for this paper —
-    summarised via ConversationSummaryMemory and injected as {history}."""
+def ask(paper_id: str, question: str, prior_turns: list = None,
+        top_k: int = TOP_K, prompt_variant: str = "base") -> dict:
+    """Run the RAG chain scoped to one paper. Returns {answer, sources, ...}.
+    prior_turns: earlier {question, answer} dicts for this paper, summarised
+        via ConversationSummaryMemory and injected as {history}.
+    top_k: retriever k. Tuneable per request for ablation studies.
+    prompt_variant: 'base' or 'refusal'. The latter instructs the model to
+        say "Not in this paper." instead of guessing when context is thin."""
     from langchain_core.prompts import PromptTemplate
     from langchain_core.output_parsers import StrOutputParser
 
+    template_str = PROMPT_VARIANTS.get(prompt_variant, PROMPT_BASE)
     prompt = PromptTemplate(
-        template=PROMPT_TEMPLATE,
+        template=template_str,
         input_variables=["context", "question", "history"],
     )
     retriever = _vectordb().as_retriever(
-        search_kwargs={"k": TOP_K, "filter": {"paper_id": paper_id}},
+        search_kwargs={"k": top_k, "filter": {"paper_id": paper_id}},
     )
     docs = retriever.invoke(question)
     context = "\n\n".join(d.page_content for d in docs)
@@ -165,4 +190,6 @@ def ask(paper_id: str, question: str, prior_turns: list = None) -> dict:
         "sources":         sources,
         "history":         history,
         "rendered_prompt": rendered_prompt,
+        "top_k":           top_k,
+        "prompt_variant":  prompt_variant,
     }
