@@ -90,6 +90,10 @@ function renderDialogueGraph(turns) {
     activeId:    activeBranchTipId,
     onNodeClick: id => {
       activeBranchTipId = id;
+      // Scroll the feed to the clicked turn so the user sees the
+      // actual question/answer alongside the tree position change.
+      const target = document.querySelector(`.qa-turn[data-turn-id="${id}"]`);
+      if (target) target.scrollIntoView({ behavior: "smooth", block: "center" });
       loadFocus(focusId);
     },
   });
