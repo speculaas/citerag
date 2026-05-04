@@ -141,11 +141,15 @@ def ask(paper_id):
     if rag_module.chunk_count(paper_id) == 0:
         abort(409, f"no chunks indexed for {paper_id}; run `python ingest.py {paper_id} <pdf>` first")
 
-    turns_data = load_turns()
-    prior_turns = [t for t in turns_data["turns"] if t["paper_id"] == paper_id]
-
-    top_k = int(body.get("top_k") or 4)
+    top_k          = int(body.get("top_k") or 4)
     prompt_variant = body.get("prompt_variant") or "base"
+    stateless      = bool(body.get("stateless"))
+
+    if stateless:
+        turns_data, prior_turns = None, []
+    else:
+        turns_data  = load_turns()
+        prior_turns = [t for t in turns_data["turns"] if t["paper_id"] == paper_id]
 
     try:
         result = rag_module.ask(
@@ -170,8 +174,9 @@ def ask(paper_id):
         "prompt_variant": result.get("prompt_variant"),
         "added_at":       now.isoformat(timespec="seconds"),
     }
-    turns_data["turns"].append(turn)
-    save_turns(turns_data)
+    if not stateless:
+        turns_data["turns"].append(turn)
+        save_turns(turns_data)
     return jsonify(turn)
 
 
