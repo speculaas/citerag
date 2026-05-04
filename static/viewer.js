@@ -30,6 +30,7 @@ async function loadFocus(id) {
   renderPaper(paper);
   renderFeed(edges, turns);
   renderGraphs(paper, edges);
+  renderDialogueGraph(turns);
   document.querySelectorAll("#library-strip .lib-item").forEach(el =>
     el.classList.toggle("active", el.dataset.paperId === id));
 }
@@ -57,6 +58,41 @@ function renderGraphs(focus, edges) {
   const opts = { activeId: focusId, onNodeClick: id => loadFocus(id).catch(err => alert(err.message)) };
   TreeGraph.render(refTree, $("graph-references"), opts);
   TreeGraph.render(cbTree,  $("graph-cited-by"),   opts);
+}
+
+function renderDialogueGraph(turns) {
+  const block = $("graph-dialogue-block");
+  if (!block) return;
+  if (!turns || turns.length === 0) {
+    block.style.display = "none";
+    return;
+  }
+  block.style.display = "";
+
+  // Index turns by parent. parent_turn_id === null|undefined → root.
+  const byParent = {};
+  turns.forEach(t => {
+    const pid = t.parent_turn_id || null;
+    (byParent[pid] = byParent[pid] || []).push(t);
+  });
+
+  const trim = s => (s || "").length > 22 ? s.slice(0, 21) + "…" : (s || "");
+  const makeNode = (t, depth) => ({
+    id:        t.id,
+    parent_id: t.parent_turn_id || null,
+    depth,
+    label:     trim(t.question),
+    children:  (byParent[t.id] || []).map(c => makeNode(c, depth + 1)),
+  });
+  const tree = (byParent[null] || []).map(t => makeNode(t, 0));
+
+  TreeGraph.render(tree, $("graph-dialogue"), {
+    activeId:    activeBranchTipId,
+    onNodeClick: id => {
+      activeBranchTipId = id;
+      loadFocus(focusId);
+    },
+  });
 }
 
 function renderLibrary(items) {
